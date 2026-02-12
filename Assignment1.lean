@@ -146,24 +146,24 @@ section Exercises
     from_premise hNotA
     from_premise a
 
-lemma exercise₇: (A → B) ↔ ((¬B) → (¬A)) := by
-  biimpl_intro -- 分两条路证明
-  · impl_intro hAB
-    impl_intro hNotB
-    not_intro
-    impl_intro a
-    have b : B := by
-      exact hAB a -- 类型class完全匹配就直接结束
-    not_elim
-    · exact hNotB
-    · exact b
-  · impl_intro hContra
-    impl_intro a
-    raa
-    impl_intro hNotB
-    have hNotA : ¬A := by
-      exact hContra hNotB
-    not_elim
-    · exact hNotA
-    · exact a
+  lemma exercise₇: (A → B) ↔ ((¬B) → (¬A)) := by
+    biimpl_intro -- 分两条路证明
+    · impl_intro hAB
+      impl_intro hNotB
+      not_intro
+      impl_intro a
+      have b : B := by
+        exact hAB a -- 类型class完全匹配就直接结束
+      not_elim
+      · exact hNotB
+      · exact b
+    · impl_intro hContra
+      impl_intro a
+      raa
+      impl_intro hNotB
+      have hNotA : ¬A := by
+        exact hContra hNotB
+      not_elim
+      · exact hNotA
+      · exact a
 end Exercises
