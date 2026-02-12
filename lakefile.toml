@@ -1,0 +1,11 @@
+name = "midterm"
+version = "0.1.0"
+defaultTargets = ["Midterm"]
+
+[[lean_lib]]
+name = "Midterm"
+
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4"
+rev = "v4.27.0"
