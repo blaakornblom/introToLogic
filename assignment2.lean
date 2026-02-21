@@ -19,140 +19,95 @@ import Mathlib.Tactic.Ring
    ℤ, also written ℤ × ℤ). The latter provides a way of dealing with alternatives, as illustrated
    below: -/
 inductive MyNat where
--- Peano axioms: a natural number is either 0 or the successor of another natural number.
-| Zero            -- First alternative: the natural number is zero
-| Succ (n: MyNat) -- Second alternative: the natural number is the successor of another one
+-- 引入了皮亞諾公理，即：一個自然數要麽是0，要麽是另一個自然數的後繼數。
+| Zero
+| Succ (n: MyNat)
 
--- We can then define objects of that type:
+-- 定義對象
 def my_var_zero : MyNat := MyNat.Zero
 def my_var_two  : MyNat := MyNat.Succ (MyNat.Succ my_var_zero)
 
+-- 打開「MyNat」這個命名空間
 open MyNat -- This just makes it so that we can type Zero instead of MyNat.Zero
 def my_var_zero' : MyNat := Zero
--- We can omit type annotations quite often (Lean is smart enough to reconstruct them)
+-- 定義「my_var_zero'」，其類型是「MyNat」，并且與「MyNat.Zero」等價。
+-- 這裡沒有寫 `MyNat`，但 Lean 可以自動推導出來。
+-- 語意上等同於：「def my_var_two' : MyNat := Succ (Succ Zero)」
 def my_var_two' := Succ (Succ my_var_zero')
 
--- We can define functions acting on objects of this type:
-@[simp] -- This makes the definition transparent to some Lean tactics — we'll get there
+@[simp]
+-- @[simp]修飾器 (decorator) 讓這個定義可自動展開 目前不用去管説是
+-- 定義了 a + b，其是 order-sensitive的，并且類型都是MyNat.
 def my_add (a b: MyNat) :=
-  -- a is either Zero or the successor of another MyNat (that we arbitrarily call a'):
   match a with
-  | .Zero => b -- If it is zero, we just return `b` (since `0 + b` is `b`)
+  | .Zero => b
   | .Succ a' =>
-    -- If it is something else, we add one to the result of the simpler addition `a' + b`
     Succ (my_add a' b)
--- This function always terminates. Do you see why? Actually, Lean only ever lets us define
--- terminating functions.
+-- 遞歸定義自然數加法. 不理解 内存不會爆炸嗎? 什麽都用遞歸真的很無語
 
--- Is this function correct? If it is, then we would expect it to have the property that `0 + x` is
--- `x` for any `x`. Let's check some simple examples:
+-- #eval 跟證明沒有半點關係，純計算函數。
 #eval my_add Zero Zero               -- Expected value: Zero
 #eval my_add Zero (Succ Zero)        -- Expected value: Succ Zero
 #eval my_add Zero (Succ (Succ Zero)) -- Expected value: Succ (Succ Zero)
 
-/- Things seem to be quite alright! Let's make this a bit more rigorous by asking Lean to check our
-   assumptions automatically. To do that, we need some (always terminating) function for comparing
-   two objects of type `MyNat`. We could build it ourselves but we are lazy — at least, I am. Let's
-   ask Lean to build this one automatically (this is possible because this is a function that is
-   built in a very predictable way; a few other functions can be derived that way). -/
-deriving instance DecidableEq for MyNat -- Building that equality checking function
+deriving instance DecidableEq for MyNat
+-- deriving: 編譯器去自動生成一些程式碼。把一個「樣板化、可機械生成」的工作交給 Lean.
+-- instance: 這個定義是給編譯器自動使用的，不是給人直接呼叫的
+-- DecidableEq for MyNat: 為MyNat派生DecidableEq 的 instance
 #test my_add Zero Zero               = MyNat.Zero
 #test my_add Zero (Succ Zero)        = Succ Zero
 #test my_add Zero (Succ (Succ Zero)) = Succ (Succ Zero)
 
-/- Lean confirms that we know how to read, which is great. Now, with this form of testing, we can
-   detect issues, but not their absence: we could not write an exhaustive set of tests that covers
-   all natural numbers. Luckily for us, Lean also doubles as a proof assistant. Let's formally
-   verify our property: -/
-def my_add_zero_x_is_x
-: ∀x, my_add Zero x = x -- What we want to prove
-:= by -- The by keyword lets us switch to tactics mode
-  intros x -- We pull `x` into the valuation (our Γ, so to speak)
-  unfold my_add -- This replaces `my_add` with its definition mechanically simplify the expression
-  /- `unfold` also simplifies the term to some extent. We can understand what happened here by
-      pretending that we are the computer:
-     `my_add Zero x = x`
-     is equivalent to (the weird syntax is required for introducing a local function object)
-     ```
-     (fun f : a b =>
-       match a with
-       | .Zero => b
-       | .Succ a' => Succ (f a' b)
-     ) Zero x = x
-     ```
-     is equivalent to (By replacing the first argument by its value)
-     ```
-     (fun f : b =>
-       match Zero with
-       | .Zero => b
-       | .Succ a' => Succ (f a' b)
-     ) x = x
-     ```
-     is equivalent to (We should take the first branch of this match, right?)
-     `(fun f : b => b) x = x`
-     is equivalent to (By replacing the remaining argument with the provided value)
-     `x = x`
-     And this is where unfold stops. -/
-  rfl -- `x = x` is obviously true
-  -- `rfl` stands for reflexivity: we say that this is true because equality is reflexive.
 
--- We are done! We could do things more compactly:
+def my_add_zero_x_is_x: ∀x, my_add Zero x = x -- 定理聲明，其後内容是完成證明之。
+:= by -- 進入tactics模式
+  intros x -- 引入一個x
+  unfold my_add -- 展開my_add, 走 .Zero 分支，讓待證明内容變成 x = x.
+  rfl -- 等式的自反性
+
 def my_add_zero_x_is_x' : ∀x, my_add Zero x = x := by
-  simp -- `simp` is like a more powerful `unfold`
+  simp -- 交給simp自動完成證明，不需要手動去展開unfold etc.
 
--- Curry-Howard magic: proofs are normal objects of Lean, like `my_var_zero` or `my_add`:
 #print my_var_zero
 #print my_add
 #print my_add_zero_x_is_x
-/- We could prove things without tactics mode, but then we would have to write such objects by hand.
-   Proof mode is just an alternative interface for building Lean objects. It is meant to approximate
-   pen-and-paper-style proofs. -/
 
--- Not all proofs are this easy. Consider the following one:
 def my_add_x_zero_is_x_failed : ∀x, my_add x Zero = x -- What we want to prove
 := by
   intros x
-  unfold my_add -- This time, `unfold` gets stuck (and so would `simp`).
-  -- Look at the above closely. There is no trivial mechanical way of simplifying things further.
-  -- We could do case-analysis on the value of `x`.
-  match x with
-  | .Zero => simp -- We can easily finish this branch
-  | .Succ x' =>
-    simp -- This does simplify things!
-    -- Oh, we are back to square one. We need to use some form of recursion to progress. One way of
-    -- solving this is to build a proof by induction.
-    sorry -- Let's drop this proof and start it again!
+  unfold my_add -- unfold 只能把第一個參數(x)遞歸成其自身，沒有辦法進行更進一步的分析
+  match x with -- 對x進行分類討論
+  | .Zero => simp -- 如果x是0的話那麽simp就可以自動完成
+  | .Succ x' => -- 如果是另一個自然數的後繼數的話那麽
+    simp -- simp還是用不了，回到了原待証命題平移后的命題
+    sorry -- 直接撂攤子走人 不証了就是説
 
 def my_add_x_zero_is_x : ∀x, my_add x Zero = x := by
   intros x
-  induction x with -- Note the name of the tactic: this is not just a `match`!
+  induction x with -- 對x進行結構歸納
   | Zero => simp
-  | Succ x' ih => -- In this branch, we gain an induction hypothesis (that I named `ih`)
-    simp
-    apply ih -- see the cheat sheet for a description of `apply`; we are done!
+  | Succ x' ih => -- ih是歸納假設「x' + 0 = x'」
+    simp -- 展開my_add, 得到 Succ (my_add x' Zero) = Succ x'
+    apply ih -- 目標只剩「my_add x' Zero = x'」，其正好是假設ih。
 
-/- So how does induction work? Consider how we asked Lean to derive the `DecidableEq` function for
-   `MyNat`. This is not the only kind of function that Lean can implement mechanically for types.
-   Another example of such a function is the so-called induction principle of a type. Unlike
-   `DecidableEq`, this one gets systematically and transparently defined by Lean whenever a new type
-   gets introduced. The `induction` tactic use this function to generate one branch per constructor
-   of our inductive type. In the case of `MyNat`, there are two of those: `Zero` and `Succ`. `Succ`
-   is somewhat special in that it takes an argument that is of type `MyNat` itself. In each branch,
-   the induction tactic provides an induction hypothesis per constructor argument that is of the
-   same type as the initial object. -/
-
--- Your turn:
+-- 待證明
 def my_add_succ:
   ∀(n m: MyNat), my_add n (Succ m) = Succ (my_add n m)
 := by
-  sorry -- remove this line and write a proof instead!
+  intros n m
+  induction n with
+  | Zero => simp
+  | Succ x' ih =>
+    simp
+    apply ih
 
--- This one is a bit trickier. You will need to use the `rw` tactic (see cheatsheet) with
+
+-- 用`rw`重寫證明交換律，并且用到了下面兩個已經證明的定理:
 -- `my_add_x_zero_is_x` and `my_add_succ`.
 def my_add_comm:
   ∀(n m: MyNat), my_add n m = my_add m n
 := by
-  sorry -- remove this line and write a proof instead!
+  intros n m
 
 /- Induction will feature prominently in the rest of this course. Indeed, we can define the syntax
    of propositional or predicate logic via inductive types, and we actually already discussed
