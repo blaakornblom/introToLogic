@@ -374,5 +374,5 @@ section Exercise₂
     | .RelationApplication _ _ _ arg _ => arg.all (helper_function name)
     -- 注意到 arg 的类型是 PredTerm 的列表，所以索性逐一检查一下吧家人们
     -- 说实话很浪费时间，但是过程更接近于死脑筋人类 (?)
-    -- arg.all 就是 brute force traversal，很无聊很低质
+    -- arg.all 就是 brute force O(n) traversal，很无聊很低质
 end Exercise₂ -- 这里应该是 end exercise才对
