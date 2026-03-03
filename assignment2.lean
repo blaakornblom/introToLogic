@@ -108,11 +108,18 @@ def my_add_comm:
   ∀(n m: MyNat), my_add n m = my_add m n
 := by
   intros n m
+  induction n with
+  | Zero =>
+    simp -- n=0时直接用simp解决
+    rw [my_add_x_zero_is_x] --rw是在干嘛，rw是在执行「找到并替换」的操作。
+    -- my_add m Zero = m 这个事实，把目标里所有的 my_add m Zero 直接换成 m。
+  | Succ n' ih => --ih就是归纳假设 只需证明对Succ n'（即 n'+1）也成立。(strong induction)
+    show Succ (my_add n' m) = my_add m (Succ n')
+    -- show是在告诉我们， n'+m的后继数等于 m+ (n'的后继数).
+    rw [my_add_succ]
+    rw [ih]
 
-/- Induction will feature prominently in the rest of this course. Indeed, we can define the syntax
-   of propositional or predicate logic via inductive types, and we actually already discussed
-   proving metaproperties of these logic by induction in the course. Here is an example encoding of
-   propositional logic formulas. -/
+/- 一些个命题逻辑的数据类型-/
 inductive Formula where
 | And  (f₁ f₂: Formula)
 | Or   (f₁ f₂: Formula)
@@ -120,12 +127,12 @@ inductive Formula where
 | Not  (f    : Formula)
 | Iff  (f₁ f₂: Formula)
 | False
-| Var (name: String)
+| Var (name: String) --原子命题(?)
 open Formula
 deriving instance DecidableEq for Formula
 
--- Here are some concrete examples of formulas:
 @[simp] def Formula₁ : Formula := Not (Not (Not (False)))
+-- 定义一个公式为 NOT NOT NOT 假
 @[simp] def Formula₂ : Formula :=
   Impl
     (Impl (Var "p₀") False)
@@ -133,28 +140,29 @@ deriving instance DecidableEq for Formula
       (Iff (Var "p₀") (Var "p₁"))
       (Var "p₅")
     )
+-- 这个其实很好懂
+-- (p_0 -> F) -> (p_5 ∧ (p_0 ↔ p_1))
 @[simp] def Formula₃ : Formula :=
   Not
     (Impl
       (Not (Var "p₁"))
       (Not (Var "p₁"))
     )
-
--- And here is how we could define a valuation. Don't get caught up in the details, it is normal if
--- you don't quite understand what is going on in the next line.
+-- 到这里都还能懂
+-- 一个字符串到布尔值的映射（关联列表），把命题变元名映射到真/假.
 def ValuationT := Lean.AssocList String Bool
 
--- The point is, we can now define valuations!
 @[simp] def empty_valuation   : ValuationT := List.toAssocList' []
+-- 空的赋值
 @[simp] def sample_valuation₁ : ValuationT := List.toAssocList' [("p₀", true), ("p₁", false)]
+-- p_0:=1, p_1:=0.
 @[simp] def sample_valuation₂ : ValuationT :=
   List.toAssocList'
     [("p₀", true), ("p₁", false), ("p₂", false), ("p₃", false), ("p₄", false), ("p₅", false)]
+-- 依此类推
+-- 注意上述evaluation并不唯一，evaluation这个东西想要怎么定义都可以。
 
--- And below is one way of expressing the semantics of propositional logic formulas. Again, you do
--- not need to understand every single detail to proceed.
-
--- This is just an auxiliary result that I use to define the semantics — feel free to skip this one.
+-- 这一大坨不知道是什么东西来的，讲师写爱懂不懂不懂也无所谓了
 def ListAssoc_contains_impl_ListAssoc_find_successful:
   ∀{K V: Type} [BEq K] (al: Lean.AssocList K V) (k: K),
   al.contains k = true → ∃v, al.find? k = some v
@@ -219,11 +227,15 @@ def eval_formula_prop? (f: Formula) (c: ValuationT) : Option Prop :=
       | some false => some ⊥
       | none       => none)
 
--- This is what the result looks like for some chosen formula/valuation pairs.
+-- reduce就是命题逻辑自己的eval
 #reduce eval_formula_prop? Formula₁ sample_valuation₁
+-- 一些evaluation下该命题是可以为T的。
+-- 可以自动联想到SAT/3SAT问题，注意SAT/3SAT问题是第一个被证明NP-COMPLETE的问题。
 #reduce eval_formula_prop? Formula₂ empty_valuation -- The valuation is not appropriate → none
+-- 空赋值，找不到取值，所以求值失败哒。
 #reduce eval_formula_prop? Formula₂ sample_valuation₂
 #reduce eval_formula_prop? Formula₃ sample_valuation₂
+-- 这些懒得看了，反正知道这里是在干什么。
 
 section Exercise₁
   -- This is the Lean version of an exercise from the first problem set.
@@ -233,23 +245,34 @@ section Exercise₁
   @[simp] def count_connectives (f: Formula): Nat :=
     match f with
     | .And f1 f2 => 1 + count_connectives f1 + count_connectives f2
-    | .Or  f1 f2 => sorry -- TODO complete this line
+    | .Or  f1 f2 => 1 + count_connectives f1 + count_connectives f2 -- 我笑死，直接复制粘贴
     -- We can use `_` as a placeholder for the name of variables if we don't care about them.
-    | .Var  _ => sorry -- TODO complete this line
-    -- We can also use `_` as a placeholder for a constructor. We can read it as "for any other
-    -- branch".
-    | _ => sorry -- TODO replace this line with all the other required branches
+    | .Var  _ => 0 -- _其实很简单，haskell学过，但是这里的.Var(原子公式)不贡献connective的数量，所以为0。
+    -- | _ => 0 -- 这里漏写了，需要我们自己去展开
+    | .False => 0
+    | .Not f2 => 1 + count_connectives f2
+    | .Impl f1 f2 => 1 + count_connectives f1 + count_connectives f2
+    | .Iff f1 f2 => 1 + count_connectives f1 + count_connectives f2
+    -- 这里好多都是映射到一个公式,要是有个switch写法就好了.
 
   #print List -- we use the `List` type below:
+  -- input: Formula
+  -- output : [Formula]
+  -- 感谢有你haskell
   @[simp] def get_all_subformulas (f: Formula) : List Formula :=
     match f with
-    | .And f1 f2 =>
-      -- We return `f` itself (`.And f1 f2`) + the subformulas in both of f1 and f2
+    | .And f1 f2 | .Or f1 f2 | .Impl f1 f2 | .Iff f1 f2 =>
+      -- 泛匹配感谢有你，要不然我要写这么多行代码我要死掉
+      -- ++ 代表了列表的拼接，而区别于数值上的计算
       f::(get_all_subformulas f1 ++ get_all_subformulas f2) -- don't mind the weird notations
-    | _ => sorry -- TODO complete this function
+    | .False | .Var _ => [f]
+    | .Not f2 => f :: get_all_subformulas f2
+    -- f :: 是cons操作，python中也有一样的操作，例如:
+    -- def Operation:: (a, b: List) => List:
+    --     return [a]+b
 
   #print List.length -- we use this function below
-  def at_most_1_plus_two_times_connectives_count_subformulas:
+  def at_most_1_plus_two_times_connectives_count_subformulas: -- 这里的def不是定义，而是断言assertion，先断言再给出证明
     ∀f, (get_all_subformulas f).length ≤ 2*(count_connectives f) + 1
   := by
     intro f
@@ -260,7 +283,8 @@ section Exercise₁
     := by lia -- end of the proof local result
     -- Let's start the induction proper:
     induction f with
-    | And f1 f2 f1h f2h => -- `f1h` and `f2h` are our induction hypotheses
+    | And f1 f2 f1h f2h | Or f1 f2 f1h f2h | Impl f1 f2 f1h f2h | Iff f1 f2 f1h f2h => -- `f1h` and `f2h` are our induction hypotheses
+      -- 偷懒不犯法，我不想自己写
       /- I am using theorems/lemmas from Lean's standard library. I found them using
          https://loogle.lean-lang.org/ -/
       simp [Nat.left_distrib, Nat.left_distrib]
@@ -268,25 +292,32 @@ section Exercise₁
       apply Nat.add_le_add -- We have two branches to handle
       . apply f1h -- The `.` marks the beginning og the branch
       . apply f2h
-    | _ => sorry -- TODO handle the other constructors. Most look very similar to the above.
+    | Not f1 f1h =>
+      simp -- 简化表达式
+      lia -- lia是专门针对整数的线性算术不等式
+    | Var _ | False => simp
 end Exercise₁
 
 -- Onto predicate logic!
 structure PredStructure (A: Type) where
   relations: List ((arity: ℕ) ×' ((l: List A) → (l.length = arity) → Bool))
+  -- 关系
   functions: List ((arity: ℕ) ×' ((l: List A) → (l.length = arity) → A))
+  -- 函数
   constants: List A
+  -- 常量
 
+-- A是论域
 inductive PredTerm {A: Type} (PS: PredStructure A) where
+-- PredTerm就是"能指代一个对象"的表达式
 | FunctionApplication
   (n: ℕ) (x: _) (n_ok: PS.functions[n]? = some x) (args: List A)
   (args_length_ok: args.length = x.1)
   -- `args` should really be of type `List (PredTerm PS)` but this would make things surprisingly
   -- more complex. There is some weird syntax here as well, but the good news is, you don't have to
   -- care.
-| Const (n: ℕ)
-  (n: ℕ) (x: _) (n_ok: PS.functions[n]? = some x) (args: List A)
-  (args_length_ok: args.length = x.1)
+| Const (n: ℕ) (x: _) (n_ok: PS.functions[n]? = some x) (args: List A)
+  (args_length_ok: args.length = x.1) -- there's a bug, that n gets defined in here twice.
 | Var (name: String)
 open PredTerm
 
@@ -297,12 +328,12 @@ inductive PredFormula {A: Type} (PS: PredStructure A) where
 | Not    (f    : PredFormula PS)
 | Iff    (f₁ f₂: PredFormula PS)
 | False
-| Exists (name: String) (f: PredFormula PS)
-| Forall (name: String) (f: PredFormula PS)
-| Eq     (t₁ t₂: PredTerm PS)
+| Exists (name: String) (f: PredFormula PS) -- 一阶谓词逻辑多出来的
+| Forall (name: String) (f: PredFormula PS) -- 一阶谓词逻辑多出来的
+| Eq     (t₁ t₂: PredTerm PS) -- 一阶谓词逻辑多出来的
 | RelationApplication
   (n: ℕ) (x: _) (n_ok: PS.functions[n]? = some x) (args: List (PredTerm PS))
-  (args_length_ok: args.length = x.1)
+  (args_length_ok: args.length = x.1) -- 一阶谓词逻辑多出来的
 open PredFormula
 
 section Exercise₂
@@ -316,4 +347,25 @@ section Exercise₂
   -- such equality tests; they return a `Bool`):
   #eval "abc" == "def"
   #eval "abc" == "abc"
-section Exercise₂
+  def all_occurrences_free (name: String) (f: PredFormula PS) : Bool :=
+  -- Use Case:
+  -- input: all_occurrences_free "x" (Forall "y" (And (Var "x") (Var "y")))
+  -- output/return: true
+  -- name 就是被查询的变量（只能有一个！！！）
+  -- f 被查询的一阶谓词逻辑公式
+  -- PS 是 PredStructure A 的实例
+  -- 返回的是Boolean value
+    match f with
+    | .And f1 f2 | .Or f1 f2 | .Impl f1 f2 | .Iff f1 f2 => (all_occurrences_free name f1) && (all_occurrences_free name f2)
+    | .Forall s f1 | .Exists s f1 =>
+      if s == name
+      then false
+      else all_occurrences_free name f1
+    | .Not f1 => all_occurrences_free name f1
+    | .False => true
+    -- False is trivially true
+    | .Eq _ _ => true
+    -- PredTerm 内部不 no quantifiers，其中的变量出现必然自由, true
+    | .RelationApplication _ _ _ _ _ => true
+    -- 参数均为 PredTerm，no quantifiers，变量出现必然自由, true
+end Exercise₂ -- 这里应该是 end exercise才对
