@@ -285,8 +285,6 @@ section Exercise₁
     induction f with
     | And f1 f2 f1h f2h | Or f1 f2 f1h f2h | Impl f1 f2 f1h f2h | Iff f1 f2 f1h f2h => -- `f1h` and `f2h` are our induction hypotheses
       -- 偷懒不犯法，我不想自己写
-      /- I am using theorems/lemmas from Lean's standard library. I found them using
-         https://loogle.lean-lang.org/ -/
       simp [Nat.left_distrib, Nat.left_distrib]
       rw [lemma1]
       apply Nat.add_le_add -- We have two branches to handle
@@ -347,6 +345,13 @@ section Exercise₂
   -- such equality tests; they return a `Bool`):
   #eval "abc" == "def"
   #eval "abc" == "abc"
+
+  def helper_function (name: String) (f: PredTerm PS) : Bool :=
+    match f with
+    | .Var _ => true
+    | .FunctionApplication _ _ _ _ _ => true
+    | .Const _ _ _ _ _ => true
+
   def all_occurrences_free (name: String) (f: PredFormula PS) : Bool :=
   -- Use Case:
   -- input: all_occurrences_free "x" (Forall "y" (And (Var "x") (Var "y")))
@@ -364,8 +369,10 @@ section Exercise₂
     | .Not f1 => all_occurrences_free name f1
     | .False => true
     -- False is trivially true
-    | .Eq _ _ => true
-    -- PredTerm 内部不 no quantifiers，其中的变量出现必然自由, true
-    | .RelationApplication _ _ _ _ _ => true
-    -- 参数均为 PredTerm，no quantifiers，变量出现必然自由, true
+    | .Eq zuobian youbian => (helper_function name zuobian) && (helper_function name youbian)
+    -- PredTerm 内部的变量出现必然自由, true, 虽然结果总归是true但是检查的过程更接近人类(?)
+    | .RelationApplication _ _ _ arg _ => arg.all (helper_function name)
+    -- 注意到 arg 的类型是 PredTerm 的列表，所以索性逐一检查一下吧家人们
+    -- 说实话很浪费时间，但是过程更接近于死脑筋人类 (?)
+    -- arg.all 就是 brute force traversal，很无聊很低质
 end Exercise₂ -- 这里应该是 end exercise才对
